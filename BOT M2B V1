@@ -1,0 +1,403 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <!-- Bot avancé : RSI + Double EMA + Martingale limitée + Stop/journalier -->
+  <!-- IMPORTANT : Toujours tester en mode Demo avant d'utiliser en réel. -->
+
+  <!-- Variables initiales -->
+  <variables>
+    <variable id="v_stake">stake</variable>
+    <variable id="v_multiplier">multiplier</variable>
+    <variable id="v_max_retries">max_retries</variable>
+    <variable id="v_loss_count">loss_count</variable>
+    <variable id="v_daily_profit_target">daily_profit_target</variable>
+    <variable id="v_daily_loss_limit">daily_loss_limit</variable>
+    <variable id="v_current_stake">current_stake</variable>
+    <variable id="v_daily_profit">daily_profit</variable>
+  </variables>
+
+  <!-- Set default values -->
+  <block type="variables_set" id="set_init" x="20" y="20">
+    <field name="VAR" id="v_stake">stake</field>
+    <value name="VALUE">
+      <block type="math_number"><field name="NUM">1</field></block> <!-- mise initiale en USD -->
+    </value>
+    <next>
+      <block type="variables_set">
+        <field name="VAR" id="v_multiplier">multiplier</field>
+        <value name="VALUE">
+          <block type="math_number"><field name="NUM">2</field></block> <!-- martingale x2 -->
+        </value>
+        <next>
+          <block type="variables_set">
+            <field name="VAR" id="v_max_retries">max_retries</field>
+            <value name="VALUE">
+              <block type="math_number"><field name="NUM">3</field></block> <!-- max martingale étapes -->
+            </value>
+            <next>
+              <block type="variables_set">
+                <field name="VAR" id="v_loss_count">loss_count</field>
+                <value name="VALUE">
+                  <block type="math_number"><field name="NUM">0</field></block>
+                </value>
+                <next>
+                  <block type="variables_set">
+                    <field name="VAR" id="v_current_stake">current_stake</field>
+                    <value name="VALUE">
+                      <block type="variables_get"><field name="VAR" id="v_stake">stake</field></block>
+                    </value>
+                    <next>
+                      <block type="variables_set">
+                        <field name="VAR" id="v_daily_profit">daily_profit</field>
+                        <value name="VALUE">
+                          <block type="math_number"><field name="NUM">0</field></block>
+                        </value>
+                        <next>
+                          <block type="variables_set">
+                            <field name="VAR" id="v_daily_profit_target">daily_profit_target</field>
+                            <value name="VALUE">
+                              <block type="math_number"><field name="NUM">100</field></block> <!-- objectif journalier USD -->
+                            </value>
+                            <next>
+                              <block type="variables_set">
+                                <field name="VAR" id="v_daily_loss_limit">daily_loss_limit</field>
+                                <value name="VALUE">
+                                  <block type="math_number"><field name="NUM">50</field></block> <!-- perte max journaliere -->
+                                </value>
+                              </block>
+                            </next>
+                          </block>
+                        </next>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </next>
+  </block>
+
+  <!-- Paramètres trade (tu peux changer le symbole dans l'UI après import) -->
+  <block type="trade_parameters" id="trade_params" x="20" y="420">
+    <field name="symbol">R_100</field>
+    <field name="trade_type">CALL_PUT</field>
+    <field name="duration">TICKS</field>
+    <field name="duration_amount">1</field>
+    <field name="currency">USD</field>
+  </block>
+
+  <!-- Logique principale : vérifier stop journalier, calculer signaux (RSI + EMA crossover) -->
+  <block type="controls_repeat_ext" id="main_loop" x="420" y="20">
+    <value name="TIMES">
+      <block type="math_number"><field name="NUM">999999</field></block>
+    </value>
+    <statement name="DO">
+      <!-- Check: si daily_profit >= target -> stop -->
+      <block type="logic_compare" id="check_profit">
+        <field name="OP">GTE</field>
+        <value name="A">
+          <block type="variables_get"><field name="VAR" id="v_daily_profit">daily_profit</field></block>
+        </value>
+        <value name="B">
+          <block type="variables_get"><field name="VAR" id="v_daily_profit_target">daily_profit_target</field></block>
+        </value>
+        <statement name="DO">
+          <block type="text_print">
+            <value name="TEXT">
+              <block type="text"><field name="TEXT">Take profit atteint — arrêt du bot pour la journée</field></block>
+            </value>
+          </block>
+        </statement>
+        <next>
+          <!-- Check: si perte journaliere >= limit -> stop -->
+          <block type="logic_compare" id="check_loss">
+            <field name="OP">GTE</field>
+            <value name="A">
+              <block type="variables_get"><field name="VAR" id="v_daily_profit">daily_profit</field></block>
+            </value>
+            <value name="B">
+              <block type="math_number"><field name="NUM">-50</field></block> <!-- si daily_profit <= -50 -->
+            </value>
+            <statement name="DO">
+              <block type="text_print">
+                <value name="TEXT">
+                  <block type="text"><field name="TEXT">Stop loss journalier atteint — arrêt du bot</field></block>
+                </value>
+              </block>
+            </statement>
+            <next>
+              <!-- Calculer indicateurs -->
+              <block type="variables_set" id="calc_indicators">
+                <field name="VAR" id="VAR_rsi">rsi_value</field>
+                <value name="VALUE">
+                  <block type="indicators_rsi">
+                    <field name="period">14</field>
+                    <field name="applied_price">close</field>
+                  </block>
+                </value>
+                <next>
+                  <block type="variables_set" id="calc_ema_fast">
+                    <field name="VAR" id="VAR_ema_fast">ema_fast</field>
+                    <value name="VALUE">
+                      <block type="indicators_ema">
+                        <field name="period">9</field>
+                        <field name="applied_price">close</field>
+                      </block>
+                    </value>
+                    <next>
+                      <block type="variables_set" id="calc_ema_slow">
+                        <field name="VAR" id="VAR_ema_slow">ema_slow</field>
+                        <value name="VALUE">
+                          <block type="indicators_ema">
+                            <field name="period">21</field>
+                            <field name="applied_price">close</field>
+                          </block>
+                        </value>
+                        <next>
+                          <!-- Condition d'entrée:
+                               - BUY CALL si EMA9 > EMA21 ET RSI > 50
+                               - BUY PUT si EMA9 < EMA21 ET RSI < 50 -->
+                          <block type="controls_ifelse" id="entry_conditions">
+                            <value name="IF0">
+                              <block type="logic_operation">
+                                <field name="OP">AND</field>
+                                <value name="A">
+                                  <block type="logic_compare">
+                                    <field name="OP">GT</field>
+                                    <value name="A">
+                                      <block type="variables_get"><field name="VAR" id="VAR_ema_fast">ema_fast</field></block>
+                                    </value>
+                                    <value name="B">
+                                      <block type="variables_get"><field name="VAR" id="VAR_ema_slow">ema_slow</field></block>
+                                    </value>
+                                  </block>
+                                </value>
+                                <value name="B">
+                                  <block type="logic_compare">
+                                    <field name="OP">GT</field>
+                                    <value name="A">
+                                      <block type="variables_get"><field name="VAR" id="VAR_rsi">rsi_value</field></block>
+                                    </value>
+                                    <value name="B">
+                                      <block type="math_number"><field name="NUM">50</field></block>
+                                    </value>
+                                  </block>
+                                </value>
+                              </block>
+                            </value>
+                            <statement name="DO0">
+                              <!-- Place a CALL -->
+                              <block type="buy" id="buy_call">
+                                <field name="contract_type">CALL</field>
+                                <value name="STAKE">
+                                  <block type="variables_get"><field name="VAR" id="v_current_stake">current_stake</field></block>
+                                </value>
+                              </block>
+                            </statement>
+                            <value name="IF1">
+                              <block type="logic_operation">
+                                <field name="OP">AND</field>
+                                <value name="A">
+                                  <block type="logic_compare">
+                                    <field name="OP">LT</field>
+                                    <value name="A">
+                                      <block type="variables_get"><field name="VAR" id="VAR_ema_fast">ema_fast</field></block>
+                                    </value>
+                                    <value name="B">
+                                      <block type="variables_get"><field name="VAR" id="VAR_ema_slow">ema_slow</field></block>
+                                    </value>
+                                  </block>
+                                </value>
+                                <value name="B">
+                                  <block type="logic_compare">
+                                    <field name="OP">LT</field>
+                                    <value name="A">
+                                      <block type="variables_get"><field name="VAR" id="VAR_rsi">rsi_value</field></block>
+                                    </value>
+                                    <value name="B">
+                                      <block type="math_number"><field name="NUM">50</field></block>
+                                    </value>
+                                  </block>
+                                </value>
+                              </block>
+                            </value>
+                            <statement name="DO1">
+                              <!-- Place a PUT -->
+                              <block type="buy" id="buy_put">
+                                <field name="contract_type">PUT</field>
+                                <value name="STAKE">
+                                  <block type="variables_get"><field name="VAR" id="v_current_stake">current_stake</field></block>
+                                </value>
+                              </block>
+                            </statement>
+                          </block>
+
+                          <!-- Après l'achat : gestion réussite/perte -->
+                          <next>
+                            <block type="controls_wait">
+                              <value name="DURATION">
+                                <block type="math_number"><field name="NUM">1</field></block>
+                              </value>
+                              <next>
+                                <block type="procedures_callnoreturn" id="on_result">
+                                  <mutation name="on_trade_result"></mutation>
+                                </block>
+                              </next>
+                            </block>
+                          </next>
+
+                        </next>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+
+  <!-- Procédure custom : gérer résultat du trade (win/loss) -->
+  <block type="procedures_defnoreturn" id="proc_result" x="20" y="800">
+    <mutation></mutation>
+    <field name="NAME">on_trade_result</field>
+    <statement name="STACK">
+      <!-- Ici on utiliserait un bloc qui récupère "last_trade_profit" ; pseudo bloc utilisé : last_trade_result -->
+      <block type="controls_if" id="proc_if">
+        <value name="IF0">
+          <block type="logic_compare">
+            <field name="OP">GT</field>
+            <value name="A">
+              <block type="last_trade_result"></block> <!-- valeur positive si win -->
+            </value>
+            <value name="B">
+              <block type="math_number"><field name="NUM">0</field></block>
+            </value>
+          </block>
+        </value>
+        <statement name="DO0">
+          <!-- Si win : reset loss_count, reset stake, ajouter profit journalier -->
+          <block type="variables_set">
+            <field name="VAR" id="v_loss_count">loss_count</field>
+            <value name="VALUE">
+              <block type="math_number"><field name="NUM">0</field></block>
+            </value>
+            <next>
+              <block type="variables_set">
+                <field name="VAR" id="v_current_stake">current_stake</field>
+                <value name="VALUE">
+                  <block type="variables_get"><field name="VAR" id="v_stake">stake</field></block>
+                </value>
+                <next>
+                  <block type="variables_set">
+                    <field name="VAR" id="v_daily_profit">daily_profit</field>
+                    <value name="VALUE">
+                      <block type="math_arithmetic">
+                        <field name="OP">ADD</field>
+                        <value name="A">
+                          <block type="variables_get"><field name="VAR" id="v_daily_profit">daily_profit</field></block>
+                        </value>
+                        <value name="B">
+                          <block type="last_trade_result"></block>
+                        </value>
+                      </block>
+                    </value>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </statement>
+        <next>
+          <block type="controls_if" id="proc_if2">
+            <value name="IF0">
+              <block type="logic_compare">
+                <field name="OP">LTE</field>
+                <value name="A">
+                  <block type="last_trade_result"></block>
+                </value>
+                <value name="B">
+                  <block type="math_number"><field name="NUM">0</field></block>
+                </value>
+              </block>
+            </value>
+            <statement name="DO0">
+              <!-- Si perte : increment loss_count, appliquer martingale si pas dépassé -->
+              <block type="variables_set">
+                <field name="VAR" id="v_loss_count">loss_count</field>
+                <value name="VALUE">
+                  <block type="math_arithmetic">
+                    <field name="OP">ADD</field>
+                    <value name="A">
+                      <block type="variables_get"><field name="VAR" id="v_loss_count">loss_count</field></block>
+                    </value>
+                    <value name="B">
+                      <block type="math_number"><field name="NUM">1</field></block>
+                    </value>
+                  </block>
+                </value>
+                <next>
+                  <block type="controls_if">
+                    <value name="IF0">
+                      <block type="logic_compare">
+                        <field name="OP">LT</field>
+                        <value name="A">
+                          <block type="variables_get"><field name="VAR" id="v_loss_count">loss_count</field></block>
+                        </value>
+                        <value name="B">
+                          <block type="variables_get"><field name="VAR" id="v_max_retries">max_retries</field></block>
+                        </value>
+                      </block>
+                    </value>
+                    <statement name="DO0">
+                      <!-- multiplier la mise -->
+                      <block type="variables_set">
+                        <field name="VAR" id="v_current_stake">current_stake</field>
+                        <value name="VALUE">
+                          <block type="math_arithmetic">
+                            <field name="OP">MULTIPLY</field>
+                            <value name="A">
+                              <block type="variables_get"><field name="VAR" id="v_current_stake">current_stake</field></block>
+                            </value>
+                            <value name="B">
+                              <block type="variables_get"><field name="VAR" id="v_multiplier">multiplier</field></block>
+                            </value>
+                          </block>
+                        </value>
+                      </block>
+                    </statement>
+                    <else>
+                      <!-- Si dépasse max_retries : reset stake et loss_count -->
+                      <block type="variables_set">
+                        <field name="VAR" id="v_current_stake">current_stake</field>
+                        <value name="VALUE">
+                          <block type="variables_get"><field name="VAR" id="v_stake">stake</field></block>
+                        </value>
+                        <next>
+                          <block type="variables_set">
+                            <field name="VAR" id="v_loss_count">loss_count</field>
+                            <value name="VALUE">
+                              <block type="math_number"><field name="NUM">0</field></block>
+                            </value>
+                          </block>
+                        </next>
+                      </block>
+                    </else>
+                  </block>
+                </next>
+              </block>
+            </statement>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+
+  <!-- Note : certains noms de blocs (ex: indicators_rsi, indicators_ema, last_trade_result)
+       sont utilisés ici comme placeholders. Si l'import renvoie "bloc inconnu", remplace-les
+       par les blocs correspondants visibles dans ta version de DBot (Interface drag & drop). -->
+
+</xml>
