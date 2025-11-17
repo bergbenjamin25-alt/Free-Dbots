@@ -1,0 +1,145 @@
+<xml xmlns="https://developers.google.com/blockly/xml">
+  <variables>
+    <variable id="init_balance">init_balance</variable>
+    <variable id="target_profit">target_profit</variable>
+    <variable id="stake">stake</variable>
+    <variable id="start_time">start_time</variable>
+    <variable id="profit_now">profit_now</variable>
+    <variable id="elapsed">elapsed</variable>
+  </variables>
+
+  <!-- Paramètres init -->
+  <block type="procedures_defnoreturn" x="20" y="20">
+    <field name="NAME">on_start</field>
+    <statement name="STACK">
+      <block type="trade_definition_market">
+        <field name="SYMBOL">V10</field>
+        <next>
+          <block type="trade_definition_contract">
+            <field name="CONTRACT_TYPE">RISFALL</field>
+            <next>
+              <block type="trade_definition_tradeoptions">
+                <field name="DURATION">1</field>
+                <field name="DURATION_UNIT">t</field>
+                <field name="CURRENCY">USD</field>
+                <next>
+                  <block type="variables_set">
+                    <field name="VAR" id="stake">stake</field>
+                    <value name="VALUE">
+                      <block type="math_number"><field name="NUM">1</field></block>
+                    </value>
+                    <next>
+                      <block type="variables_set">
+                        <field name="VAR" id="target_profit">target_profit</field>
+                        <value name="VALUE">
+                          <block type="math_number"><field name="NUM">100</field></block>
+                        </value>
+                        <next>
+                          <block type="variables_set">
+                            <field name="VAR" id="init_balance">init_balance</field>
+                            <value name="VALUE">
+                              <block type="balance"/></value>
+                            <next>
+                              <block type="variables_set">
+                                <field name="VAR" id="start_time">start_time</field>
+                                <value name="VALUE">
+                                  <block type="time_now"/>
+                                </value>
+                              </block>
+                            </next>
+                          </block>
+                        </next>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+
+  <!-- Condition d'achat -->
+  <block type="purchase" x="20" y="260">
+    <field name="PURCHASE_LIST">CALL</field>
+    <value name="AMOUNT">
+      <block type="variables_get"><field name="VAR" id="stake">stake</field></block>
+    </value>
+  </block>
+
+  <!-- Gestion du résultat et arrêt -->
+  <block type="after_purchase" x="350" y="260">
+    <statement name="AFTERPURCHASE_STACK">
+      <block type="variables_set">
+        <field name="VAR" id="profit_now">profit_now</field>
+        <value name="VALUE">
+          <block type="math_arithmetic">
+            <field name="OP">MINUS</field>
+            <value name="A"><block type="balance"/></value>
+            <value name="B"><block type="variables_get"><field name="VAR" id="init_balance">init_balance</field></block></value>
+          </block>
+        </value>
+        <next>
+          <block type="variables_set">
+            <field name="VAR" id="elapsed">elapsed</field>
+            <value name="VALUE">
+              <block type="math_arithmetic">
+                <field name="OP">MINUS</field>
+                <value name="A"><block type="time_now"/></value>
+                <value name="B"><block type="variables_get"><field name="VAR" id="start_time">start_time</field></block></value>
+              </block>
+            </value>
+            <next>
+              <block type="controls_if">
+                <value name="IF0">
+                  <block type="logic_compare">
+                    <field name="OP">GTE</field>
+                    <value name="A"><block type="variables_get"><field name="VAR" id="profit_now">profit_now</field></block></value>
+                    <value name="B"><block type="variables_get"><field name="VAR" id="target_profit">target_profit</field></block></value>
+                  </block>
+                </value>
+                <statement name="DO0">
+                  <block type="notify">
+                    <field name="NOTIFICATION_TYPE">success</field>
+                    <field name="MESSAGE">Objectif atteint: +100 $</field>
+                    <next><block type="trade_again" inline="false"><field name="TRADE_AGAIN">FALSE</field></block></next>
+                  </block>
+                </statement>
+                <next>
+                  <block type="controls_if">
+                    <value name="IF0">
+                      <block type="logic_compare">
+                        <field name="OP">GTE</field>
+                        <value name="A"><block type="variables_get"><field name="VAR" id="elapsed">elapsed</field></block></value>
+                        <value name="B"><block type="math_number"><field name="NUM">60</field></block></value>
+                      </block>
+                    </value>
+                    <statement name="DO0">
+                      <block type="notify">
+                        <field name="NOTIFICATION_TYPE">warning</field>
+                        <field name="MESSAGE">Temps écoulé: 60 s</field>
+                        <next><block type="trade_again"><field name="TRADE_AGAIN">FALSE</field></block></next>
+                      </block>
+                    </statement>
+                    <next>
+                      <block type="trade_again">
+                        <field name="TRADE_AGAIN">TRUE</field>
+                      </block>
+                    </next>
+                  </block>
+                </next>
+              </block>
+            </next>
+          </block>
+        </next>
+      </block>
+    </statement>
+  </block>
+
+  <!-- Démarrage automatique -->
+  <block type="procedures_callnoreturn" x="20" y="520">
+    <mutation name="on_start"></mutation>
+  </block>
+</xml>
